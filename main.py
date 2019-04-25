@@ -22,6 +22,7 @@ import loggers as lg
 from settings import run_folder, run_archive_folder
 import initialise
 import pickle
+import time
 
 
 lg.logger_main.info('=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*')
@@ -75,70 +76,73 @@ best_player = Agent('best_player', env.state_size, env.action_size, config.MCTS_
 #user_player = User('player1', env.state_size, env.action_size)
 iteration = 0
 
-while 1:
+start = time.time()
+for i in config.LOOP:
+    while 1:
 
-    iteration += 1
-    reload(lg)
-    reload(config)
-    
-    print('ITERATION NUMBER ' + str(iteration))
-    
-    lg.logger_main.info('BEST PLAYER VERSION: %d', best_player_version)
-    print('BEST PLAYER VERSION ' + str(best_player_version))
+        iteration += 1
+        reload(lg)
+        reload(config)
 
-    ######## SELF PLAY ########
-    print('SELF PLAYING ' + str(config.EPISODES) + ' EPISODES...')
-    _, memory, _, _ = playMatches(best_player, best_player, config.EPISODES, lg.logger_main, turns_until_tau0 = config.TURNS_UNTIL_TAU0, memory = memory)
-    print('\n')
-    
-    memory.clear_stmemory()
-    
-    if len(memory.ltmemory) >= config.MEMORY_SIZE:
+        print('ITERATION NUMBER ' + str(iteration))
 
-        ######## RETRAINING ########
-        print('RETRAINING...')
-        current_player.replay(memory.ltmemory)
-        print('')
+        lg.logger_main.info('BEST PLAYER VERSION: %d', best_player_version)
+        print('BEST PLAYER VERSION ' + str(best_player_version))
 
-        if iteration % 5 == 0:
-            pickle.dump( memory, open( run_folder + "memory/memory" + str(iteration).zfill(4) + ".p", "wb" ) )
+        ######## SELF PLAY ########
+        print('SELF PLAYING ' + str(config.EPISODES) + ' EPISODES...')
+        _, memory, _, _ = playMatches(best_player, best_player, config.EPISODES, lg.logger_main, turns_until_tau0 = config.TURNS_UNTIL_TAU0, memory = memory)
+        print('\n')
 
-        lg.logger_memory.info('====================')
-        lg.logger_memory.info('NEW MEMORIES')
-        lg.logger_memory.info('====================')
-        
-        memory_samp = random.sample(memory.ltmemory, min(1000, len(memory.ltmemory)))
-        
-        for s in memory_samp:
-            current_value, current_probs, _ = current_player.get_preds(s['state'])
-            best_value, best_probs, _ = best_player.get_preds(s['state'])
+        memory.clear_stmemory()
 
-            lg.logger_memory.info('MCTS VALUE FOR %s: %f', s['playerTurn'], s['value'])
-            lg.logger_memory.info('CUR PRED VALUE FOR %s: %f', s['playerTurn'], current_value)
-            lg.logger_memory.info('BES PRED VALUE FOR %s: %f', s['playerTurn'], best_value)
-            lg.logger_memory.info('THE MCTS ACTION VALUES: %s', ['%.2f' % elem for elem in s['AV']]  )
-            lg.logger_memory.info('CUR PRED ACTION VALUES: %s', ['%.2f' % elem for elem in  current_probs])
-            lg.logger_memory.info('BES PRED ACTION VALUES: %s', ['%.2f' % elem for elem in  best_probs])
-            lg.logger_memory.info('ID: %s', s['state'].id)
-            lg.logger_memory.info('INPUT TO MODEL: %s', current_player.model.convertToModelInput(s['state']))
+        if len(memory.ltmemory) >= config.MEMORY_SIZE:
 
-            s['state'].render(lg.logger_memory)
-            
-        ######## TOURNAMENT ########
-        print('TOURNAMENT...')
-        scores, _, points, sp_scores = playMatches(best_player, current_player, config.EVAL_EPISODES, lg.logger_tourney, turns_until_tau0 = 0, memory = None)
-        print('\nSCORES')
-        print(scores)
-        print('\nSTARTING PLAYER / NON-STARTING PLAYER SCORES')
-        print(sp_scores)
-        #print(points)
+            ######## RETRAINING ########
+            print('RETRAINING...')
+            current_player.replay(memory.ltmemory)
+            print('')
 
-        print('\n\n')
+            if iteration % 5 == 0:
+                pickle.dump( memory, open( run_folder + "memory/memory" + str(iteration).zfill(4) + ".p", "wb" ) )
 
-        if scores['current_player'] > scores['best_player'] * config.SCORING_THRESHOLD:
-            best_player_version = best_player_version + 1
-            best_NN.model.set_weights(current_NN.model.get_weights())
-            best_NN.write(env.name, best_player_version)
+            lg.logger_memory.info('====================')
+            lg.logger_memory.info('NEW MEMORIES')
+            lg.logger_memory.info('====================')
 
-    else:
-        print('MEMORY SIZE: ' + str(len(memory.ltmemory)))
+            memory_samp = random.sample(memory.ltmemory, min(1000, len(memory.ltmemory)))
+
+            for s in memory_samp:
+                current_value, current_probs, _ = current_player.get_preds(s['state'])
+                best_value, best_probs, _ = best_player.get_preds(s['state'])
+
+                lg.logger_memory.info('MCTS VALUE FOR %s: %f', s['playerTurn'], s['value'])
+                lg.logger_memory.info('CUR PRED VALUE FOR %s: %f', s['playerTurn'], current_value)
+                lg.logger_memory.info('BES PRED VALUE FOR %s: %f', s['playerTurn'], best_value)
+                lg.logger_memory.info('THE MCTS ACTION VALUES: %s', ['%.2f' % elem for elem in s['AV']]  )
+                lg.logger_memory.info('CUR PRED ACTION VALUES: %s', ['%.2f' % elem for elem in  current_probs])
+                lg.logger_memory.info('BES PRED ACTION VALUES: %s', ['%.2f' % elem for elem in  best_probs])
+                lg.logger_memory.info('ID: %s', s['state'].id)
+                lg.logger_memory.info('INPUT TO MODEL: %s', current_player.model.convertToModelInput(s['state']))
+
+                s['state'].render(lg.logger_memory)
+
+            ######## TOURNAMENT ########
+            print('TOURNAMENT...')
+            scores, _, points, sp_scores = playMatches(best_player, current_player, config.EVAL_EPISODES, lg.logger_tourney, turns_until_tau0 = 0, memory = None)
+            print('\nSCORES')
+            print(scores)
+            print('\nSTARTING PLAYER / NON-STARTING PLAYER SCORES')
+            print(sp_scores)
+            #print(points)
+
+            print('\n\n')
+
+            if scores['current_player'] > scores['best_player'] * config.SCORING_THRESHOLD:
+                best_player_version = best_player_version + 1
+                best_NN.model.set_weights(current_NN.model.get_weights())
+                best_NN.write(env.name, best_player_version)
+
+        else:
+            print('MEMORY SIZE: ' + str(len(memory.ltmemory)))
+print(time.time() - start)
